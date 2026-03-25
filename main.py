@@ -125,7 +125,8 @@ def parse_and_update_order(ai_reply):
         print(f"অর্ডার পার্স error: {e}")
 
 # ─── Twilio Webhook Routes ─────────────────────────────────
-@app.route("/voice", methods=["POST"])
+@app.route("/voice", methods=["GET", "POST"])
+
 def voice():
     """প্রথম কল ধরে স্বাগত জানায়"""
     resp = VoiceResponse()
@@ -145,7 +146,8 @@ def voice():
     resp.append(gather)
     return Response(str(resp), mimetype="text/xml")
 
-@app.route("/respond", methods=["POST"])
+@app.route("/respond", methods=["GET", "POST"])
+
 def respond():
     """ব্যবহারকারীর কথার উত্তর দেয়"""
     call_sid = request.form.get("CallSid")
