@@ -141,7 +141,8 @@ def voice():
     gather.say(
         "আস্সালামু আলাইকুম। আমি রাহেলা, ফ্যাক্টরির AI সহকারী। "
         "আপনি কি জানতে চান বা অর্ডার দিতে চান?",
-        language="bn-BD"
+        language="bn-BD",
+        voice="Google.bn-IN-Standard-A"
     )
     resp.append(gather)
     return Response(str(resp), mimetype="text/xml")
