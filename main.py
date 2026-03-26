@@ -9,31 +9,76 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# ─── কনফিগারেশন ───────────────────────────────────────────
+# কনফিগারেশন... (আপনার আগের কোডের মতোই থাকবে)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 GOOGLE_SHEET_ID   = os.environ.get("GOOGLE_SHEET_ID")
-GOOGLE_CREDS_JSON = os.environ.get("GOOGLE_CREDS_JSON")  # JSON string
+GOOGLE_CREDS_JSON = os.environ.get("GOOGLE_CREDS_JSON")
 
-# ─── Google Sheets কানেকশন ────────────────────────────────
-def get_sheet():
-    creds_dict = json.loads(GOOGLE_CREDS_JSON)
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    client = gspread.authorize(creds)
-    return client.open_by_key(GOOGLE_SHEET_ID).sheet1
+# আপনার Google Sheets ফাংশনগুলো এখানে থাকবে... (আগের মতোই)
 
-def get_stock_data():
-    """Google Sheets থেকে স্টক ডেটা পড়ে"""
-    sheet = get_sheet()
-    records = sheet.get_all_records()
-    stock_text = "বর্তমান স্টক:\n"
-    for row in records:
-        stock_text += f"- {row['পণ্যের নাম']}: {row['পরিমাণ']} {row['একক']}\n"
-    return stock_text, records
+@app.route("/voice", methods=["GET", "POST"])
+def voice():
+    """প্রথম কল ধরে কোনো দেরি না করে স্বাগত জানায়"""
+    resp = VoiceResponse()
+    
+    # প্রথমেই Gather শুরু করুন যাতে কোনো API কলের জন্য দেরি না হয়
+    gather = Gather(
+        input="speech",
+        language="bn-BD",
+        action="/respond",
+        method="POST",
+        timeout=3,
+        speech_timeout="auto"
+    )
+    # প্রথম মেসেজটি ছোট রাখুন যাতে কল দ্রুত কানেক্ট হয়
+    gather.say("আসসালামু আলাইকুম। আমি রাহেলা। আমি আপনাকে কীভাবে সাহায্য করতে পারি?", 
+               language="bn-BD")
+    
+    resp.append(gather)
+    
+    # যদি কেউ কিছু না বলে তবে আবার অনুরোধ করবে
+    resp.redirect('/voice') 
+    return Response(str(resp), mimetype="text/xml")
 
+@app.route("/respond", methods=["POST"]) # এখানে শুধু POST রাখাই ভালো
+def respond():
+    """ব্যবহারকারীর কথার উত্তর দেয় এবং এখানে AI প্রসেসিং হবে"""
+    call_sid = request.form.get("CallSid")
+    user_speech = request.form.get("SpeechResult", "")
+
+    resp = VoiceResponse()
+
+    if not user_speech:
+        # যদি ইউজার কিছু না বলে
+        resp.say("দুঃখিত, আমি শুনতে পাইনি। দয়া করে আবার বলুন।", language="bn-BD")
+        resp.redirect('/voice')
+        return Response(str(resp), mimetype="text/xml")
+
+    # এখানে এখন AI এবং Sheets এর কাজ হবে (ইউজার অলরেডি কলে আছে)
+    try:
+        ai_reply = get_ai_response(call_sid, user_speech)
+    except Exception as e:
+        print(f"Error: {e}")
+        ai_reply = "দুঃখিত, আমার সার্ভারে কিছু সমস্যা হচ্ছে। একটু পরে কথা বলুন।"
+
+    # AI এর উত্তর শোনানো
+    gather = Gather(
+        input="speech",
+        language="bn-BD",
+        action="/respond",
+        method="POST",
+        timeout=3
+    )
+    gather.say(ai_reply, language="bn-BD")
+    resp.append(gather)
+
+    return Response(str(resp), mimetype="text/xml")
+
+# আপনার বাকি ফাংশনগুলো...
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
 def update_stock(product_name, quantity_change, reason="অর্ডার"):
     """স্টক আপডেট করে"""
     sheet = get_sheet()
